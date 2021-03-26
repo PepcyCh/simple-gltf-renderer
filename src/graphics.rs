@@ -36,7 +36,10 @@ impl GraphicsState {
                 &wgpu::DeviceDescriptor {
                     label: Some("Device"),
                     features: wgpu::Features::empty(),
-                    limits: wgpu::Limits::default(),
+                    limits: wgpu::Limits {
+                        max_bind_groups: 5,
+                        ..Default::default()
+                    }
                 },
                 None,
             )
@@ -65,7 +68,7 @@ impl GraphicsState {
                 label: Some("Light Bind Group Layout"),
                 entries: &[
                     util::uniform_bind_group_entry(0),
-                    // for future use
+                    // for future use (shadow map)
                     // util::texture_bind_group_entry(1, wgpu::TextureViewDimension::D2),
                     // util::texture_bind_group_entry(2, wgpu::TextureViewDimension::Cube),
                     // util::sampler_bind_group_entry(3),
@@ -76,14 +79,12 @@ impl GraphicsState {
                 label: Some("Camera Bind Group Layout"),
                 entries: &[util::uniform_bind_group_entry(0)],
             });
-        // for future use
         let scene_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Scene Bind Group Layout"),
                 entries: &[
-                    util::uniform_bind_group_entry(0),
-                    util::texture_bind_group_entry(1, wgpu::TextureViewDimension::Cube),
-                    util::sampler_bind_group_entry(2),
+                    util::texture_bind_group_entry(0, wgpu::TextureViewDimension::Cube),
+                    util::sampler_bind_group_entry(1),
                 ],
             });
 

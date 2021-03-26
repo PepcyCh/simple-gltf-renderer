@@ -1,9 +1,12 @@
 use crate::graphics::GraphicsState;
+use wgpu::util::DeviceExt;
+use std::collections::HashMap;
 
 pub struct Texture {
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
     pub sampler: wgpu::Sampler,
+    pub views: HashMap<String, wgpu::TextureView>,
 }
 
 impl Texture {
@@ -44,6 +47,7 @@ impl Texture {
             texture,
             view,
             sampler,
+            views: HashMap::new(),
         }
     }
 
@@ -62,29 +66,18 @@ impl Texture {
             height,
             depth: 1,
         };
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label,
-            size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format,
-            usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST,
-        });
-
-        queue.write_texture(
-            wgpu::TextureCopyView {
-                texture: &texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
+        let texture = device.create_texture_with_data(
+            queue,
+            &wgpu::TextureDescriptor {
+                label,
+                size,
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format,
+                usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST,
             },
             bytes,
-            wgpu::TextureDataLayout {
-                offset: 0,
-                bytes_per_row: format.describe().block_size as u32 * width,
-                rows_per_image: height,
-            },
-            size,
         );
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -95,6 +88,51 @@ impl Texture {
             texture,
             view,
             sampler,
+            views: HashMap::new(),
+        }
+    }
+
+    pub fn from_bytes_cube(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        bytes: &[u8],
+        width: u32,
+        format: wgpu::TextureFormat,
+        sampler_desc: &wgpu::SamplerDescriptor,
+        label: Option<&str>,
+    ) -> Self {
+        // TODO - cube tex
+        let size = wgpu::Extent3d {
+            width,
+            height: width,
+            depth: 6,
+        };
+        let texture = device.create_texture_with_data(
+            queue,
+            &wgpu::TextureDescriptor {
+                label,
+                size,
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format,
+                usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST,
+            },
+            bytes,
+        );
+
+        let view = texture.create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::Cube),
+            ..Default::default()
+        });
+
+        let sampler = device.create_sampler(sampler_desc);
+
+        Self {
+            texture,
+            view,
+            sampler,
+            views: HashMap::new(),
         }
     }
 
@@ -144,6 +182,25 @@ impl Texture {
             wgpu::TextureFormat::Rgba8Unorm,
             &wgpu::SamplerDescriptor::default(),
             Some("Normal 1x1"),
+        )
+    }
+    #[rustfmt::skip]
+    pub fn default_cube(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
+        Self::from_bytes_cube(
+            device,
+            queue,
+            &[
+                255, 0, 0, 255,
+                0, 255, 255, 255,
+                0, 255, 0, 255,
+                255, 0, 255, 255,
+                0, 0, 255, 255,
+                255, 255, 0, 255,
+            ],
+            1,
+            wgpu::TextureFormat::Rgba8Unorm,
+            &wgpu::SamplerDescriptor::default(),
+            Some("Default Cube"),
         )
     }
 }

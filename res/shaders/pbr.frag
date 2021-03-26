@@ -46,6 +46,9 @@ layout (set = 3, binding = 0) uniform CameraUniform {
     float camera_zfar;
 };
 
+layout (set = 4, binding = 0) uniform textureCube skybox_tex;
+layout (set = 4, binding = 1) uniform sampler skybox_tex_sampler;
+
 const float PI = 3.14159265359;
 const vec3 DIELECTRTIC_R0 = vec3(0.04);
 const vec3 AMBIENT = vec3(0.05);
@@ -107,10 +110,14 @@ void main() {
     vec3 view_dir = normalize(camera_position - v_position);
     vec3 half_dir = normalize(view_dir + light_dir);
 
+    // reflect
+    vec3 reflect_dir = reflect(-view_dir, normal_dir);
+
     // dots
     float ndoth = max(dot(normal_dir, half_dir), 0.0);
     float ndotv = max(dot(normal_dir, view_dir), 0.0);
     float ndotl = max(dot(normal_dir, light_dir), 0.0);
+    float hdotv = max(dot(half_dir, view_dir), 0.0);
 
     // diffuse
     vec3 diffuse = albedo / PI;
@@ -122,14 +129,16 @@ void main() {
     float visible = SeparableVisible(ndotv, ndotl, roughness_sqr);
 
     // Fresnel
-    vec3 fresnel = SchlickFresnel(fresnel_r0, ndotv);
+    vec3 fresnel = SchlickFresnel(fresnel_r0, hdotv);
 
     // direct lighting
     vec3 direct_lighting = (diffuse * (vec3(1.0) - fresnel) + ndf * visible * fresnel) * light_color.xyz * ndotl;
 
     // indirect lighting (TODO - change to skybox)
 #ifdef FORWARD_BASE
-    vec3 indirect_lighting = AMBIENT * albedo;
+    vec3 indirect_specular = texture(samplerCube(skybox_tex, skybox_tex_sampler), reflect_dir).rgb;
+    vec3 indirect_diffuse = AMBIENT * albedo;
+    vec3 indirect_lighting = indirect_diffuse * (vec3(1.0) - fresnel) + indirect_specular * fresnel;
 #else
     vec3 indirect_lighting = vec3(0.0);
 #endif

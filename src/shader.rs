@@ -212,7 +212,7 @@ impl SubShader {
                 object_bind_group_layout,
                 camera_bind_group_layout,
                 light_bind_group_layout,
-                // scene_bind_group_layout,
+                scene_bind_group_layout,
             ],
             push_constant_ranges: &[],
         });

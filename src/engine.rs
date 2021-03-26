@@ -6,6 +6,7 @@ use crate::light::Light;
 use crate::material::Material;
 use crate::mesh::Mesh;
 use crate::shader::Shader;
+use crate::texture::Texture;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
@@ -20,8 +21,10 @@ pub struct Engine {
     last_mouse_position: PhysicalPosition<f64>,
     pub graphics_state: GraphicsState,
     pub meshes: Vec<Mesh>,
-    pub camera: Camera,
-    pub lights: Vec<Light>,
+    camera: Camera,
+    lights: Vec<Light>,
+    skybox: Texture,
+    scene_bind_group: wgpu::BindGroup,
     pub shaders: HashMap<String, Shader>,
     pub materials: HashMap<String, Material>,
 }
@@ -61,6 +64,26 @@ impl Engine {
             &graphics_state.light_bind_group_layout,
         );
 
+        let skybox = Texture::default_cube(&graphics_state.device, &graphics_state.queue);
+
+        let scene_bind_group =
+            graphics_state
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("Scene Bind Group"),
+                    layout: &graphics_state.scene_bind_group_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(&skybox.view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(&skybox.sampler),
+                        },
+                    ],
+                });
+
         Ok((
             Self {
                 window,
@@ -70,6 +93,8 @@ impl Engine {
                 meshes: vec![],
                 camera,
                 lights: vec![light0, light1],
+                skybox,
+                scene_bind_group,
                 shaders: HashMap::new(),
                 materials: HashMap::new(),
             },
@@ -279,7 +304,7 @@ impl Engine {
                     }),
                 }),
             });
-            // println!("Begin Frame");
+            render_pass.set_bind_group(4, &self.scene_bind_group, &[]);
             render_pass.set_bind_group(3, &self.camera.bind_group.as_ref().unwrap(), &[]);
             let mut is_first = true;
             for light in &self.lights {
@@ -289,7 +314,6 @@ impl Engine {
                     "ForwardAdd"
                 };
                 is_first = false;
-                // println!("- SubShader tag = {}", &sub_shader_tag);
                 render_pass.set_bind_group(2, light.bind_group.as_ref().unwrap(), &[]);
 
                 for mesh in &self.meshes {
@@ -306,14 +330,12 @@ impl Engine {
                         if let Some(pipeline) =
                             self.graphics_state.render_pipelines.get(&pipeline_name)
                         {
-                            // println!("- Render pipeline: {}, material is {}", &pipeline_name, &material.name);
                             render_pass.set_pipeline(pipeline);
                             render_pass.draw_indexed(0..mesh.index_count(), 0, 0..1);
                         }
                     }
                 }
             }
-            // println!("End Frame");
         }
         self.graphics_state
             .queue
