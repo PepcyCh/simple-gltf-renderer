@@ -53,8 +53,8 @@ layout (set = 3, binding = 0) uniform CameraUniform {
 void main() {
     v_position = (matrix_model * vec4(a_position, 1.0)).xyz;
     v_texcoords = a_texcoords;
-    v_normal = mat3(matrix_model_iv) * a_normal;
-    v_tangent = mat3(matrix_model) * a_tangent.xyz;
+    v_normal = normalize(mat3(matrix_model_iv) * a_normal);
+    v_tangent = normalize(mat3(matrix_model) * a_tangent.xyz);
     v_bitangent = cross(v_normal, v_tangent) * a_tangent.w;
 
     gl_Position = matrix_proj * matrix_view * vec4(v_position, 1.0);

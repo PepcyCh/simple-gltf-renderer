@@ -1,0 +1,40 @@
+{
+  "name": "pbr_shader",
+  "uniform_properties": [
+    ["vec4", "base_color"],
+    ["vec3", "emissive_factor"],
+    ["float", "metallic_factor"],
+    ["float", "roughness_factor"]
+  ],
+  "texture_properties": [
+    ["2D", "base_color_tex", "white"],
+    ["2D", "normal_tex", "normal"],
+    ["2D", "metallic_roughness_tex", "white"],
+    ["2D", "emissive_tex", "black"]
+  ],
+  "subshaders": [
+    {
+      "tag": "ForwardBase",
+      "definition": {
+        "FORWARD_BASE": []
+      },
+      "vs": "res/shaders/pbr.vert",
+      "fs": "res/shaders/pbr.frag"
+    },
+    {
+      "tag": "ForwardAdd",
+      "depth_write": false,
+      "depth_compare": "equal",
+      "blend": {
+        "op": "add",
+        "src": "one",
+        "dst": "one",
+        "op_alpha": "add",
+        "src_alpha": "zero",
+        "dst_alpha": "one"
+      },
+      "vs": "res/shaders/pbr.vert",
+      "fs": "res/shaders/pbr.frag"
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-# Simple GLTF Renderer
+# Simple glTF Renderer
 
 A toy renderer to render scenes that are loaded from `.gltf` files and play with kinds of shaders. (But it can only do limited things now... I'll try to make it better in the future...)
 

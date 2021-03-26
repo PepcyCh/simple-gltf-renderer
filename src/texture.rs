@@ -122,6 +122,18 @@ impl Texture {
             Some("Black 1x1"),
         )
     }
+    pub fn gray1x1(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
+        Self::from_bytes_2d(
+            device,
+            queue,
+            &[128, 128, 128, 255],
+            1,
+            1,
+            wgpu::TextureFormat::Rgba8Unorm,
+            &wgpu::SamplerDescriptor::default(),
+            Some("Gray 1x1"),
+        )
+    }
     pub fn normal1x1(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
         Self::from_bytes_2d(
             device,

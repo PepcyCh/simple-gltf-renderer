@@ -5,7 +5,7 @@ use crate::graphics::GraphicsState;
 use crate::light::Light;
 use crate::material::Material;
 use crate::mesh::Mesh;
-use crate::shader::{Shader, SubShader, SubShaderOption, TextureProperty, UniformProperty};
+use crate::shader::Shader;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
@@ -30,7 +30,7 @@ impl Engine {
     pub fn new() -> Result<(Self, winit::event_loop::EventLoop<()>)> {
         let event_loop = winit::event_loop::EventLoop::new();
         let window = winit::window::WindowBuilder::new()
-            .with_title("Simple GLTF Renderer")
+            .with_title("Simple glTF Renderer")
             .build(&event_loop)
             .unwrap();
         let graphics_state = futures::executor::block_on(GraphicsState::new(&window))?;
@@ -50,8 +50,13 @@ impl Engine {
             &graphics_state.camera_bind_group_layout,
         );
 
-        let mut light = Light::directional_light((-1.0, -10.0, -1.0).into(), [1.0, 1.0, 1.0, 1.0]);
-        light.build(
+        let mut light0 = Light::directional_light((-1.0, -8.0, -1.0).into(), [1.0, 1.0, 1.0, 1.0]);
+        light0.build(
+            &graphics_state.device,
+            &graphics_state.light_bind_group_layout,
+        );
+        let mut light1 = Light::directional_light((1.0, -4.0, 1.0).into(), [0.8, 0.8, 0.8, 1.0]);
+        light1.build(
             &graphics_state.device,
             &graphics_state.light_bind_group_layout,
         );
@@ -64,7 +69,7 @@ impl Engine {
                 graphics_state,
                 meshes: vec![],
                 camera,
-                lights: vec![light],
+                lights: vec![light0, light1],
                 shaders: HashMap::new(),
                 materials: HashMap::new(),
             },
@@ -122,48 +127,9 @@ impl Engine {
 
         let shaders = json_value["shaders"].as_array().unwrap();
         for shader in shaders {
-            let name = shader["name"].as_str().unwrap().to_string();
-
-            let uniform_properties_arr = shader["uniform_properties"].as_array().unwrap();
-            let mut uniform_properties = Vec::with_capacity(uniform_properties_arr.len());
-            for prop in uniform_properties_arr {
-                let name = prop["name"].as_str().unwrap().to_string();
-                let ty: UniformProperty = prop["type"].as_str().unwrap().to_string().try_into()?;
-                uniform_properties.push((name, ty));
-            }
-
-            let texture_properties_arr = shader["texture_properties"].as_array().unwrap();
-            let mut texture_properties = Vec::with_capacity(texture_properties_arr.len());
-            for prop in texture_properties_arr {
-                let name = prop["name"].as_str().unwrap().to_string();
-                let ty: TextureProperty = prop["type"].as_str().unwrap().to_string().try_into()?;
-                texture_properties.push((name, ty));
-            }
-
-            let sub_shaders_arr = shader["subshaders"].as_array().unwrap();
-            let mut sub_shaders = HashMap::new();
-            for sub in sub_shaders_arr {
-                let name = sub["name"].as_str().unwrap().to_string();
-                let vs_file = sub["vs"].as_str().unwrap();
-                let vs_module =
-                    crate::shader::util::compile_to_module(vs_file, &self.graphics_state.device)?;
-                let fs_file = sub["fs"].as_str().unwrap();
-                let fs_module =
-                    crate::shader::util::compile_to_module(fs_file, &self.graphics_state.device)?;
-                let option = SubShaderOption::default();
-                // TODO - shader_option
-                let sub_shader = SubShader::new(name.clone(), option, vs_module, fs_module);
-                sub_shaders.insert(name, sub_shader);
-            }
-
-            let mut shader = Shader::new(
-                name.clone(),
-                uniform_properties,
-                texture_properties,
-                sub_shaders,
-            );
-            shader.build(&self.graphics_state.device);
-            for (sub_shader_name, sub_shader) in &shader.sub_shaders {
+            let mut shader: Shader = shader.try_into()?;
+            shader.build(&self.graphics_state.device)?;
+            for (sub_shader_tag, sub_shader) in &shader.sub_shaders {
                 let render_pipeline = sub_shader.render_pipeline(
                     &shader,
                     &self.graphics_state.device,
@@ -175,19 +141,23 @@ impl Engine {
                     &self.graphics_state.scene_bind_group_layout,
                 );
                 self.graphics_state.render_pipelines.insert(
-                    format!("{}-{}", &shader.name, sub_shader_name),
+                    format!("{}-{}", &shader.name, sub_shader_tag),
                     render_pipeline,
                 );
             }
-            self.shaders.insert(name, shader);
+            self.shaders.insert(shader.name.clone(), shader);
         }
 
         let materials = json_value["materials"].as_array().unwrap();
         for material in materials {
             let name = material["name"].as_str().unwrap().to_string();
             let shader = material["shader"].as_str().unwrap().to_string();
-            let uniform_size = self.shaders[&shader].uniform_size;
-            let material = Material::new(name.clone(), shader, uniform_size);
+            let material = Material::from_shader(
+                name.clone(),
+                &self.shaders[&shader],
+                &self.graphics_state.device,
+                &self.graphics_state.queue,
+            );
             self.materials.insert(name, material);
         }
 
@@ -195,7 +165,7 @@ impl Engine {
     }
 
     fn input(&mut self, event: &WindowEvent) -> bool {
-        // TODO - camera
+        // TODO - move to a single file ?
         let mut result = false;
         match event {
             WindowEvent::KeyboardInput { input, .. } => {
@@ -206,6 +176,29 @@ impl Engine {
                         ..
                     } => {
                         // TODO - key press
+                        result = true;
+                        let delta = 0.05;
+                        match keycode {
+                            VirtualKeyCode::W => self
+                                .camera
+                                .translate(cgmath::Vector3::new(0.0, 0.0, -delta)),
+                            VirtualKeyCode::S => {
+                                self.camera.translate(cgmath::Vector3::new(0.0, 0.0, delta))
+                            }
+                            VirtualKeyCode::A => self
+                                .camera
+                                .translate(cgmath::Vector3::new(-delta, 0.0, 0.0)),
+                            VirtualKeyCode::D => {
+                                self.camera.translate(cgmath::Vector3::new(delta, 0.0, 0.0))
+                            }
+                            VirtualKeyCode::Q => {
+                                self.camera.translate(cgmath::Vector3::new(0.0, delta, 0.0))
+                            }
+                            VirtualKeyCode::E => self
+                                .camera
+                                .translate(cgmath::Vector3::new(0.0, -delta, 0.0)),
+                            _ => result = false,
+                        }
                     }
                     _ => {}
                 }
@@ -245,6 +238,8 @@ impl Engine {
 
     fn resize(&mut self, new_size: PhysicalSize<u32>) {
         self.graphics_state.resize(new_size.width, new_size.height);
+        self.camera
+            .set_aspect(new_size.width as f32 / new_size.height as f32);
         self.window_size = new_size;
     }
 
@@ -284,15 +279,17 @@ impl Engine {
                     }),
                 }),
             });
+            // println!("Begin Frame");
             render_pass.set_bind_group(3, &self.camera.bind_group.as_ref().unwrap(), &[]);
             let mut is_first = true;
             for light in &self.lights {
-                let sub_shader_name = if is_first {
+                let sub_shader_tag = if is_first {
                     "ForwardBase"
                 } else {
                     "ForwardAdd"
                 };
                 is_first = false;
+                // println!("- SubShader tag = {}", &sub_shader_tag);
                 render_pass.set_bind_group(2, light.bind_group.as_ref().unwrap(), &[]);
 
                 for mesh in &self.meshes {
@@ -305,16 +302,18 @@ impl Engine {
                     );
                     if let Some(material) = self.materials.get(&mesh.material) {
                         render_pass.set_bind_group(0, material.bind_group.as_ref().unwrap(), &[]);
-                        let pipeline_name = format!("{}-{}", &material.shader, sub_shader_name);
+                        let pipeline_name = format!("{}-{}", &material.shader, sub_shader_tag);
                         if let Some(pipeline) =
                             self.graphics_state.render_pipelines.get(&pipeline_name)
                         {
+                            // println!("- Render pipeline: {}, material is {}", &pipeline_name, &material.name);
                             render_pass.set_pipeline(pipeline);
                             render_pass.draw_indexed(0..mesh.index_count(), 0, 0..1);
                         }
                     }
                 }
             }
+            // println!("End Frame");
         }
         self.graphics_state
             .queue

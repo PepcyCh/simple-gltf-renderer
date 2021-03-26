@@ -1,6 +1,7 @@
 use wgpu::util::DeviceExt;
 
 use crate::vertex::MeshVertex;
+use cgmath::prelude::*;
 use cgmath::{Matrix, SquareMatrix};
 
 pub struct Mesh {
@@ -47,6 +48,47 @@ impl Mesh {
 
     pub fn index_count(&self) -> u32 {
         self.indices.len() as u32
+    }
+
+    pub fn calc_tangents(&mut self) {
+        let vertex_count = self.vertices.len();
+        let mut tangents_sum = vec![cgmath::Vector3::zero(); vertex_count];
+
+        let triangle_count = self.indices.len() / 3;
+        for i in 0..triangle_count {
+            let i0 = self.indices[3 * i] as usize;
+            let i1 = self.indices[3 * i + 1] as usize;
+            let i2 = self.indices[3 * i + 2] as usize;
+
+            let p0: cgmath::Point3<f32> = self.vertices[i0].position.into();
+            let p1: cgmath::Point3<f32> = self.vertices[i1].position.into();
+            let p2: cgmath::Point3<f32> = self.vertices[i2].position.into();
+            let e1 = p1 - p0;
+            let e2 = p2 - p0;
+
+            let uv0: cgmath::Point2<f32> = self.vertices[i0].texcoords.into();
+            let uv1: cgmath::Point2<f32> = self.vertices[i1].texcoords.into();
+            let uv2: cgmath::Point2<f32> = self.vertices[i2].texcoords.into();
+            let u1 = uv1 - uv0;
+            let u2 = uv2 - uv0;
+
+            let f = 1.0 / (u1.x * u2.y - u1.y * u2.x);
+            let t = cgmath::Vector3::new(
+                f * (u2.y * e1.x - u1.y * e2.x),
+                f * (u2.y * e1.y - u1.y * e2.y),
+                f * (u2.y * e1.z - u1.y * e2.z),
+            );
+            let t = t.normalize();
+            tangents_sum[i0] += t;
+            tangents_sum[i1] += t;
+            tangents_sum[i2] += t;
+        }
+
+        for i in 0..vertex_count {
+            let tangent = tangents_sum[i].normalize();
+            let tangent = cgmath::Vector4::new(tangent.x, tangent.y, tangent.z, 1.0);
+            self.vertices[i].tangent = tangent.into();
+        }
     }
 
     pub fn build(&mut self, device: &wgpu::Device, layout: &wgpu::BindGroupLayout) {

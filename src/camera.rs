@@ -95,6 +95,17 @@ impl Camera {
         self.uniform_dirty = true;
     }
 
+    pub fn translate(&mut self, delta: cgmath::Vector3<f32>) {
+        self.eye += delta;
+        self.target += delta;
+        self.uniform_dirty = true;
+    }
+
+    pub fn set_aspect(&mut self, new_aspect: f32) {
+        self.aspect = new_aspect;
+        self.uniform_dirty = true;
+    }
+
     pub fn build(&mut self, device: &wgpu::Device, layout: &wgpu::BindGroupLayout) {
         self.uniform_buffer = Some(
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -116,6 +127,7 @@ impl Camera {
 
     pub fn update(&mut self, queue: &wgpu::Queue) {
         if self.uniform_dirty {
+            self.uniform.eye = self.eye.into();
             self.uniform.view = cgmath::Matrix4::look_at(self.eye, self.target, self.up).into();
             self.uniform.proj = (Self::OPENGL_TO_WGPU_MATRIX
                 * cgmath::perspective(cgmath::Deg(self.fovy), self.aspect, self.znear, self.zfar))

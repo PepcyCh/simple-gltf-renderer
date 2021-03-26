@@ -46,7 +46,35 @@ layout (set = 3, binding = 0) uniform CameraUniform {
     float camera_zfar;
 };
 
+const float PI = 3.14159265359;
+const vec3 DIELECTRTIC_R0 = vec3(0.04);
+const vec3 AMBIENT = vec3(0.05);
+
+float pow2(float x) {
+    return x * x;
+}
+
+float pow5(float x) {
+    float x2 = x * x;
+    return x * x2 * x2;
+}
+
+vec3 SchlickFresnel(vec3 r0, float ndotv) {
+    return r0 + (vec3(1.0) - r0) * pow5(1 - ndotv);
+}
+
+float NdfGgx(float ndoth, float a2) {
+    return a2 / (PI * pow2(ndoth * ndoth * (a2 - 1) + 1));
+}
+
+float SeparableVisible(float ndotv, float ndotl, float a2) {
+    float v = abs(ndotv) + sqrt((1 - a2) * ndotv * ndotv + a2);
+    float l = abs(ndotl) + sqrt((1 - a2) * ndotl * ndotl + a2);
+    return 1.0 / (v * l);
+}
+
 void main() {
+    // albedo, alpha
     vec4 albedo_all = base_color * texture(sampler2D(base_color_tex, base_color_tex_sampler), v_texcoords);
     vec3 albedo = albedo_all.xyz;
     float alpha = albedo_all.a;
@@ -54,5 +82,73 @@ void main() {
         discard;
     }
 
-    f_color = vec4(albedo, 1.0);
+    // normal
+    vec3 normal_tspace = texture(sampler2D(normal_tex, normal_tex_sampler), v_texcoords).xyz;
+    normal_tspace = (normal_tspace - vec3(0.5)) * 2.0;
+    vec3 normal_dir = normalize(
+        v_tangent * normal_tspace.x +
+        v_bitangent * normal_tspace.y +
+        v_normal * normal_tspace.z
+    );
+
+    // roughness, metallic, fresnel_r0
+    vec4 mr = texture(sampler2D(metallic_roughness_tex, metallic_roughness_tex_sampler), v_texcoords);
+    float metallic = mr.b * metallic_factor;
+    vec3 fresnel_r0 = mix(vec3(0.04), albedo, metallic);
+    float p_roughness = mr.g * roughness_factor;
+    float roughness = p_roughness * p_roughness;
+    float roughness_sqr = roughness * roughness;
+
+    // emissive
+    vec3 emissive = emissive_factor * texture(sampler2D(emissive_tex, emissive_tex_sampler), v_texcoords).xyz;
+
+    // light, view, half
+    vec3 light_dir = mix(light_position.xyz, normalize(light_position.xyz - v_position), light_position.w);
+    vec3 view_dir = normalize(camera_position - v_position);
+    vec3 half_dir = normalize(view_dir + light_dir);
+
+    // dots
+    float ndoth = max(dot(normal_dir, half_dir), 0.0);
+    float ndotv = max(dot(normal_dir, view_dir), 0.0);
+    float ndotl = max(dot(normal_dir, light_dir), 0.0);
+
+    // diffuse
+    vec3 diffuse = albedo / PI;
+
+    // NDF
+    float ndf = NdfGgx(ndoth, roughness_sqr);
+
+    // Visible
+    float visible = SeparableVisible(ndotv, ndotl, roughness_sqr);
+
+    // Fresnel
+    vec3 fresnel = SchlickFresnel(fresnel_r0, ndotv);
+
+    // direct lighting
+    vec3 direct_lighting = (diffuse * (vec3(1.0) - fresnel) + ndf * visible * fresnel) * light_color.xyz * ndotl;
+
+    // indirect lighting (TODO - change to skybox)
+#ifdef FORWARD_BASE
+    vec3 indirect_lighting = AMBIENT * albedo;
+#else
+    vec3 indirect_lighting = vec3(0.0);
+#endif
+
+#ifdef FORWARD_BASE
+    vec3 normal_visualized = (normal_dir + vec3(1.0)) * 0.5;
+#else
+    vec3 normal_visualized = vec3(0.0);
+#endif
+
+    // final color
+//    vec3 final_color = albedo;
+//    vec3 final_color = normal_visualized;
+//    vec3 final_color = vec3(ndf);
+//    vec3 final_color = vec3(visible);
+//    vec3 final_color = fresnel;
+//    vec3 final_color = emissive;
+//    vec3 final_color = direct_lighting;
+//    vec3 final_color = indirect_lighting;
+    vec3 final_color = direct_lighting + emissive + indirect_lighting;
+    f_color = vec4(final_color, alpha);
 }
