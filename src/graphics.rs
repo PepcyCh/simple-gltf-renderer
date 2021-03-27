@@ -9,11 +9,8 @@ pub struct GraphicsState {
     pub swap_chain: wgpu::SwapChain,
     pub swap_chain_desc: wgpu::SwapChainDescriptor,
     pub depth_stencil_texture: Texture,
-    pub object_bind_group_layout: wgpu::BindGroupLayout,
-    pub light_bind_group_layout: wgpu::BindGroupLayout,
-    pub camera_bind_group_layout: wgpu::BindGroupLayout,
-    pub scene_bind_group_layout: wgpu::BindGroupLayout,
     pub render_pipelines: HashMap<String, wgpu::RenderPipeline>,
+    pub bind_group_layouts: HashMap<String, wgpu::BindGroupLayout>,
 }
 
 impl GraphicsState {
@@ -39,7 +36,7 @@ impl GraphicsState {
                     limits: wgpu::Limits {
                         max_bind_groups: 5,
                         ..Default::default()
-                    }
+                    },
                 },
                 None,
             )
@@ -85,8 +82,19 @@ impl GraphicsState {
                 entries: &[
                     util::texture_bind_group_entry(0, wgpu::TextureViewDimension::Cube),
                     util::sampler_bind_group_entry(1),
+                    util::texture_bind_group_entry(2, wgpu::TextureViewDimension::Cube),
+                    util::sampler_bind_group_entry(3),
+                    util::texture_bind_group_entry(4, wgpu::TextureViewDimension::Cube),
+                    util::sampler_bind_group_entry(5),
+                    util::texture_bind_group_entry(6, wgpu::TextureViewDimension::D2),
+                    util::sampler_bind_group_entry(7),
                 ],
             });
+        let mut bind_group_layouts = HashMap::new();
+        bind_group_layouts.insert("_Object".to_string(), object_bind_group_layout);
+        bind_group_layouts.insert("_Light".to_string(), light_bind_group_layout);
+        bind_group_layouts.insert("_Camera".to_string(), camera_bind_group_layout);
+        bind_group_layouts.insert("_Scene".to_string(), scene_bind_group_layout);
 
         Ok(Self {
             surface,
@@ -95,11 +103,8 @@ impl GraphicsState {
             swap_chain,
             swap_chain_desc,
             depth_stencil_texture,
-            object_bind_group_layout,
-            light_bind_group_layout,
-            camera_bind_group_layout,
-            scene_bind_group_layout,
             render_pipelines: HashMap::new(),
+            bind_group_layouts,
         })
     }
 

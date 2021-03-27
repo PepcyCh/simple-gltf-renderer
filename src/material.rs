@@ -11,7 +11,7 @@ pub struct Material {
     uniform_bytes: Vec<u8>,
     uniform_offsets: HashMap<String, usize>,
     uniform_buffer: Option<wgpu::Buffer>,
-    textures: HashMap<String, Texture>,
+    pub textures: HashMap<String, Texture>,
     textures_index: HashMap<String, u32>,
     pub bind_group: Option<wgpu::BindGroup>,
 }

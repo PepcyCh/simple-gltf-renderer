@@ -11,6 +11,7 @@ const float PI = 3.14159265359;
 
 void main() {
     vec3 normal_dir = normalize(v_position);
+    // vec3 bitangent_dir = abs(normal_dir.y) < 0.999 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
     vec3 bitangent_dir = vec3(0.0, 1.0, 0.0);
     vec3 tangent_dir = cross(bitangent_dir, normal_dir);
     bitangent_dir = cross(normal_dir, tangent_dir);

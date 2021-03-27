@@ -1,12 +1,14 @@
 use anyhow::*;
 
-use crate::camera::Camera;
+use crate::camera::{Camera, CubeCamera};
+use crate::env_map::EnvMap;
 use crate::graphics::GraphicsState;
 use crate::light::Light;
 use crate::material::Material;
 use crate::mesh::Mesh;
 use crate::shader::Shader;
 use crate::texture::Texture;
+use image::GenericImageView;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
@@ -16,15 +18,18 @@ use winit::event::{
 use winit::event_loop::ControlFlow;
 
 pub struct Engine {
+    // TODO - make these fields clean ?
     window: winit::window::Window,
     window_size: PhysicalSize<u32>,
     last_mouse_position: PhysicalPosition<f64>,
     pub graphics_state: GraphicsState,
     pub meshes: Vec<Mesh>,
     camera: Camera,
+    pub skybox_camera: CubeCamera,
+    pub skybox_cube: Mesh,
     lights: Vec<Light>,
-    skybox: Texture,
-    scene_bind_group: wgpu::BindGroup,
+    skybox: EnvMap,
+    brdf_lut: Texture,
     pub shaders: HashMap<String, Shader>,
     pub materials: HashMap<String, Material>,
 }
@@ -50,56 +55,78 @@ impl Engine {
         );
         camera.build(
             &graphics_state.device,
-            &graphics_state.camera_bind_group_layout,
+            &graphics_state.bind_group_layouts["_Camera"],
+        );
+
+        let mut skybox_camera = CubeCamera::new((0.0, 0.0, 0.0).into(), 0.1, 1000.0);
+        skybox_camera.build(
+            &graphics_state.device,
+            &graphics_state.bind_group_layouts["_Camera"],
+        );
+
+        let mut skybox_cube = Mesh::cube("".to_string());
+        skybox_cube.build(
+            &graphics_state.device,
+            &graphics_state.bind_group_layouts["_Object"],
         );
 
         let mut light0 = Light::directional_light((-1.0, -8.0, -1.0).into(), [1.0, 1.0, 1.0, 1.0]);
         light0.build(
             &graphics_state.device,
-            &graphics_state.light_bind_group_layout,
+            &graphics_state.bind_group_layouts["_Light"],
         );
         let mut light1 = Light::directional_light((1.0, -4.0, 1.0).into(), [0.8, 0.8, 0.8, 1.0]);
         light1.build(
             &graphics_state.device,
-            &graphics_state.light_bind_group_layout,
+            &graphics_state.bind_group_layouts["_Light"],
         );
 
-        let skybox = Texture::default_cube(&graphics_state.device, &graphics_state.queue);
-
-        let scene_bind_group =
-            graphics_state
-                .device
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("Scene Bind Group"),
-                    layout: &graphics_state.scene_bind_group_layout,
-                    entries: &[
-                        wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: wgpu::BindingResource::TextureView(&skybox.view),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 1,
-                            resource: wgpu::BindingResource::Sampler(&skybox.sampler),
-                        },
-                    ],
-                });
-
-        Ok((
-            Self {
-                window,
-                window_size,
-                last_mouse_position: PhysicalPosition { x: 0.0, y: 0.0 },
-                graphics_state,
-                meshes: vec![],
-                camera,
-                lights: vec![light0, light1],
-                skybox,
-                scene_bind_group,
-                shaders: HashMap::new(),
-                materials: HashMap::new(),
+        let brdf_lut = image::load_from_memory(include_bytes!("../res/textures/brdf_lut.png"))?;
+        let brdf_lut_width = brdf_lut.width();
+        let brdf_lut_height = brdf_lut.height();
+        let brdf_lut = Texture::from_bytes_2d(
+            &graphics_state.device,
+            &graphics_state.queue,
+            &brdf_lut.into_rgba8(),
+            brdf_lut_width,
+            brdf_lut_height,
+            wgpu::TextureFormat::Rgba8Unorm,
+            false,
+            &wgpu::SamplerDescriptor {
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+                mipmap_filter: wgpu::FilterMode::Nearest,
+                ..Default::default()
             },
-            event_loop,
-        ))
+            Some("BRDF LUT"),
+        );
+
+        // TODO - load a skybox
+        let skybox = EnvMap::default(
+            &graphics_state.device,
+            &graphics_state.queue,
+            &graphics_state.bind_group_layouts["_Scene"],
+            &brdf_lut,
+        );
+
+        let mut engine = Self {
+            window,
+            window_size,
+            last_mouse_position: PhysicalPosition { x: 0.0, y: 0.0 },
+            graphics_state,
+            meshes: vec![],
+            camera,
+            skybox_camera,
+            skybox_cube,
+            lights: vec![light0, light1],
+            skybox,
+            brdf_lut,
+            shaders: HashMap::new(),
+            materials: HashMap::new(),
+        };
+        engine.init_inner_pipelines();
+
+        Ok((engine, event_loop))
     }
 
     pub fn run(mut self, event_loop: winit::event_loop::EventLoop<()>) {
@@ -160,10 +187,10 @@ impl Engine {
                     &self.graphics_state.device,
                     self.graphics_state.swap_chain_desc.format,
                     GraphicsState::DEPTH_STENCIL_FORMAT,
-                    &self.graphics_state.object_bind_group_layout,
-                    &self.graphics_state.light_bind_group_layout,
-                    &self.graphics_state.camera_bind_group_layout,
-                    &self.graphics_state.scene_bind_group_layout,
+                    &self.graphics_state.bind_group_layouts["_Object"],
+                    &self.graphics_state.bind_group_layouts["_Light"],
+                    &self.graphics_state.bind_group_layouts["_Camera"],
+                    &self.graphics_state.bind_group_layouts["_Scene"],
                 );
                 self.graphics_state.render_pipelines.insert(
                     format!("{}-{}", &shader.name, sub_shader_tag),
@@ -185,6 +212,65 @@ impl Engine {
             );
             self.materials.insert(name, material);
         }
+
+        Ok(())
+    }
+
+    pub fn load_skybox<P: AsRef<std::path::Path>>(
+        &mut self,
+        path_pos_x: P,
+        path_neg_x: P,
+        path_pos_y: P,
+        path_neg_y: P,
+        path_pos_z: P,
+        path_neg_z: P,
+    ) -> Result<()> {
+        let image_pos_x = image::open(path_pos_x)?.into_rgba8();
+        let image_neg_x = image::open(path_neg_x)?.into_rgba8();
+        let image_pos_y = image::open(path_pos_y)?.into_rgba8();
+        let image_neg_y = image::open(path_neg_y)?.into_rgba8();
+        let image_pos_z = image::open(path_pos_z)?.into_rgba8();
+        let image_neg_z = image::open(path_neg_z)?.into_rgba8();
+
+        let width = image_pos_x.width();
+
+        let bytes_pos_x: &[u8] = &image_pos_x;
+        let bytes_neg_x: &[u8] = &image_neg_x;
+        let bytes_pos_y: &[u8] = &image_pos_y;
+        let bytes_neg_y: &[u8] = &image_neg_y;
+        let bytes_pos_z: &[u8] = &image_pos_z;
+        let bytes_neg_z: &[u8] = &image_neg_z;
+
+        let bytes: Vec<u8> = [
+            bytes_pos_x,
+            bytes_neg_x,
+            bytes_pos_y,
+            bytes_neg_y,
+            bytes_pos_z,
+            bytes_neg_z,
+        ]
+        .iter()
+        .flat_map(|bytes| bytes.iter())
+        .cloned()
+        .collect();
+
+        let new_skybox = self.create_env_map(
+            &bytes,
+            // &[
+            //     255, 0, 0, 255,
+            //     0, 255, 255, 255,
+            //     0, 255, 0, 255,
+            //     255, 0, 255, 255,
+            //     0, 0, 255, 255,
+            //     255, 255, 0, 255,
+            // ],
+            width,
+            // 1,
+            wgpu::TextureFormat::Rgba8UnormSrgb,
+            Some("EnvMap"),
+            &self.brdf_lut,
+        );
+        self.skybox = new_skybox;
 
         Ok(())
     }
@@ -269,11 +355,10 @@ impl Engine {
     }
 
     fn update(&mut self) {
-        // TODO
         self.camera.update(&self.graphics_state.queue);
     }
 
-    fn render(&mut self) -> Result<(), wgpu::SwapChainError> {
+    fn render(&self) -> Result<(), wgpu::SwapChainError> {
         let frame = self.graphics_state.swap_chain.get_current_frame()?.output;
         let mut encoder =
             self.graphics_state
@@ -304,7 +389,7 @@ impl Engine {
                     }),
                 }),
             });
-            render_pass.set_bind_group(4, &self.scene_bind_group, &[]);
+            render_pass.set_bind_group(4, &self.skybox.bind_group, &[]);
             render_pass.set_bind_group(3, &self.camera.bind_group.as_ref().unwrap(), &[]);
             let mut is_first = true;
             for light in &self.lights {
@@ -336,10 +421,115 @@ impl Engine {
                     }
                 }
             }
+            self.draw_skybox(&mut render_pass);
         }
         self.graphics_state
             .queue
             .submit(std::iter::once(encoder.finish()));
         Ok(())
+    }
+
+    fn draw_skybox<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
+        render_pass.set_pipeline(&self.graphics_state.render_pipelines["Skybox"]);
+        render_pass.set_bind_group(1, &self.skybox.bind_group, &[]);
+        render_pass.set_bind_group(0, &self.camera.bind_group.as_ref().unwrap(), &[]);
+        render_pass.set_vertex_buffer(
+            0,
+            self.skybox_cube.vertex_buffer.as_ref().unwrap().slice(..),
+        );
+        render_pass.set_index_buffer(
+            self.skybox_cube.index_buffer.as_ref().unwrap().slice(..),
+            wgpu::IndexFormat::Uint32,
+        );
+        render_pass.draw_indexed(0..self.skybox_cube.index_count(), 0, 0..1);
+    }
+
+    pub fn generate_mipmap(&self, texture: &Texture) {
+        let mipmap_level_count = {
+            let layer_size = wgpu::Extent3d {
+                depth: 1,
+                ..texture.size
+            };
+            layer_size.max_mips() as u32
+        };
+        let layer_count = texture.size.depth;
+
+        let pipeline_name = format!("Blit-{:?}", texture.format);
+
+        let mut encoder =
+            self.graphics_state
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Render Encoder - Mipmap"),
+                });
+        for i in 0..layer_count {
+            let mut last_view = texture.texture.create_view(&wgpu::TextureViewDescriptor {
+                dimension: Some(wgpu::TextureViewDimension::D2),
+                base_array_layer: i,
+                array_layer_count: std::num::NonZeroU32::new(1),
+                base_mip_level: 0,
+                level_count: std::num::NonZeroU32::new(1),
+                ..Default::default()
+            });
+            for j in 1..mipmap_level_count {
+                let view = texture.texture.create_view(&wgpu::TextureViewDescriptor {
+                    dimension: Some(wgpu::TextureViewDimension::D2),
+                    base_array_layer: i,
+                    array_layer_count: std::num::NonZeroU32::new(1),
+                    base_mip_level: j,
+                    level_count: std::num::NonZeroU32::new(1),
+                    ..Default::default()
+                });
+
+                let bind_group =
+                    self.graphics_state
+                        .device
+                        .create_bind_group(&wgpu::BindGroupDescriptor {
+                            label: Some("Mipmap Bind Group"),
+                            layout: &self.graphics_state.bind_group_layouts["_Blit"],
+                            entries: &[
+                                wgpu::BindGroupEntry {
+                                    binding: 0,
+                                    resource: wgpu::BindingResource::TextureView(&last_view),
+                                },
+                                wgpu::BindGroupEntry {
+                                    binding: 1,
+                                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
+                                },
+                            ],
+                        });
+                {
+                    let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("Render Pass - Mipmap"),
+                        color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
+                            attachment: &view,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                                store: true,
+                            },
+                        }],
+                        depth_stencil_attachment: None,
+                    });
+                    render_pass.set_pipeline(&self.graphics_state.render_pipelines[&pipeline_name]);
+                    render_pass.set_bind_group(0, &bind_group, &[]);
+                    render_pass.draw(0..3, 0..1);
+                }
+
+                last_view = view;
+            }
+        }
+
+        self.graphics_state
+            .queue
+            .submit(std::iter::once(encoder.finish()));
+    }
+
+    pub fn generate_all_mipmaps(&self) {
+        for (_, mat) in &self.materials {
+            for (_, tex) in &mat.textures {
+                self.generate_mipmap(tex);
+            }
+        }
     }
 }

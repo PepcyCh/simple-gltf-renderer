@@ -48,6 +48,12 @@ layout (set = 3, binding = 0) uniform CameraUniform {
 
 layout (set = 4, binding = 0) uniform textureCube skybox_tex;
 layout (set = 4, binding = 1) uniform sampler skybox_tex_sampler;
+layout (set = 4, binding = 2) uniform textureCube skybox_irradiance_tex;
+layout (set = 4, binding = 3) uniform sampler skybox_irradiance_tex_sampler;
+layout (set = 4, binding = 4) uniform textureCube skybox_prefiltered_tex;
+layout (set = 4, binding = 5) uniform sampler skybox_prefiltered_tex_sampler;
+layout (set = 4, binding = 6) uniform texture2D brdf_lut_tex;
+layout (set = 4, binding = 7) uniform sampler brdf_lut_tex_sampler;
 
 const float PI = 3.14159265359;
 const vec3 DIELECTRTIC_R0 = vec3(0.04);
@@ -134,11 +140,14 @@ void main() {
     // direct lighting
     vec3 direct_lighting = (diffuse * (vec3(1.0) - fresnel) + ndf * visible * fresnel) * light_color.xyz * ndotl;
 
-    // indirect lighting (TODO - change to skybox)
+    // indirect lighting
 #ifdef FORWARD_BASE
-    vec3 indirect_specular = texture(samplerCube(skybox_tex, skybox_tex_sampler), reflect_dir).rgb;
-    vec3 indirect_diffuse = AMBIENT * albedo;
-    vec3 indirect_lighting = indirect_diffuse * (vec3(1.0) - fresnel) + indirect_specular * fresnel;
+    vec3 prefiltered_color = textureLod(samplerCube(skybox_prefiltered_tex, skybox_prefiltered_tex_sampler),
+        reflect_dir, p_roughness * 6).rgb;
+    vec2 brdf = texture(sampler2D(brdf_lut_tex, brdf_lut_tex_sampler), vec2(ndotv, p_roughness)).rg;
+    vec3 indirect_specular = prefiltered_color * (fresnel * brdf.x + brdf.y);
+    vec3 indirect_diffuse = texture(samplerCube(skybox_irradiance_tex, skybox_irradiance_tex_sampler), normal_dir).rgb;
+    vec3 indirect_lighting = indirect_diffuse * (vec3(1.0) - fresnel) + indirect_specular;
 #else
     vec3 indirect_lighting = vec3(0.0);
 #endif

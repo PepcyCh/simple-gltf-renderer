@@ -201,8 +201,8 @@ impl SubShader {
         color_format: wgpu::TextureFormat,
         depth_stencil_format: wgpu::TextureFormat,
         object_bind_group_layout: &wgpu::BindGroupLayout,
-        camera_bind_group_layout: &wgpu::BindGroupLayout,
         light_bind_group_layout: &wgpu::BindGroupLayout,
+        camera_bind_group_layout: &wgpu::BindGroupLayout,
         scene_bind_group_layout: &wgpu::BindGroupLayout,
     ) -> wgpu::RenderPipeline {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -210,8 +210,8 @@ impl SubShader {
             bind_group_layouts: &[
                 &shader.bind_group_layout.as_ref().unwrap(),
                 object_bind_group_layout,
-                camera_bind_group_layout,
                 light_bind_group_layout,
+                camera_bind_group_layout,
                 scene_bind_group_layout,
             ],
             push_constant_ranges: &[],

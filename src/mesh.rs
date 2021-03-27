@@ -114,12 +114,195 @@ impl Mesh {
             }),
         );
         self.bind_group = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Object Bing d Group"),
+            label: Some("Object Bing Group"),
             layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: self.uniform_buffer.as_ref().unwrap().as_entire_binding(),
             }],
         }))
+    }
+
+    #[rustfmt::skip]
+    pub fn cube(material: String) -> Self {
+        let vertices = vec![
+            MeshVertex {
+                position: [-1.0, -1.0, -1.0],
+                texcoords: [0.0, 0.0],
+                normal: [0.0, 0.0, -1.0],
+                tangent: [0.0, 1.0, 0.0, 1.0],
+                ..Default::default()
+            },
+            MeshVertex {
+                position: [-1.0, 1.0, -1.0],
+                texcoords: [1.0, 0.0],
+                normal: [0.0, 0.0, -1.0],
+                tangent: [0.0, 1.0, 0.0, 1.0],
+                ..Default::default()
+            },
+            MeshVertex {
+                position: [1.0, 1.0, -1.0],
+                texcoords: [1.0, 1.0],
+                normal: [0.0, 0.0, -1.0],
+                tangent: [0.0, 1.0, 0.0, 1.0],
+                ..Default::default()
+            },
+            MeshVertex {
+                position: [1.0, -1.0, -1.0],
+                texcoords: [0.0, 1.0],
+                normal: [0.0, 0.0, -1.0],
+                tangent: [0.0, 1.0, 0.0, 1.0],
+                ..Default::default()
+            },
+            MeshVertex {
+                position: [-1.0, -1.0, 1.0],
+                texcoords: [0.0, 0.0],
+                normal: [0.0, 0.0, 1.0],
+                tangent: [1.0, 0.0, 0.0, 1.0],
+                ..Default::default()
+            },
+            MeshVertex {
+                position: [-1.0, 1.0, 1.0],
+                texcoords: [1.0, 0.0],
+                normal: [0.0, 0.0, 1.0],
+                tangent: [1.0, 0.0, 0.0, 1.0],
+                ..Default::default()
+            },
+            MeshVertex {
+                position: [1.0, 1.0, 1.0],
+                texcoords: [1.0, 1.0],
+                normal: [0.0, 0.0, 1.0],
+                tangent: [1.0, 0.0, 0.0, 1.0],
+                ..Default::default()
+            },
+            MeshVertex {
+                position: [1.0, -1.0, 1.0],
+                texcoords: [0.0, 1.0],
+                normal: [0.0, 0.0, 1.0],
+                tangent: [1.0, 0.0, 0.0, 1.0],
+                ..Default::default()
+            },
+            MeshVertex {
+                position: [-1.0, -1.0, -1.0],
+                texcoords: [0.0, 0.0],
+                normal: [0.0, -1.0, 0.0],
+                tangent: [1.0, 0.0, 0.0, 1.0],
+                ..Default::default()
+            },
+            MeshVertex {
+                position: [1.0, -1.0, -1.0],
+                texcoords: [1.0, 0.0],
+                normal: [0.0, -1.0, 0.0],
+                tangent: [1.0, 0.0, 0.0, 1.0],
+                ..Default::default()
+            },
+            MeshVertex {
+                position: [1.0, -1.0, 1.0],
+                texcoords: [1.0, 1.0],
+                normal: [0.0, -1.0, 0.0],
+                tangent: [1.0, 0.0, 0.0, 1.0],
+                ..Default::default()
+            },
+            MeshVertex {
+                position: [-1.0, -1.0, 1.0],
+                texcoords: [0.0, 1.0],
+                normal: [0.0, -1.0, 0.0],
+                tangent: [1.0, 0.0, 0.0, 1.0],
+                ..Default::default()
+            },
+            MeshVertex {
+                position: [-1.0, 1.0, -1.0],
+                texcoords: [0.0, 0.0],
+                normal: [0.0, 1.0, 0.0],
+                tangent: [0.0, 0.0, 1.0, 1.0],
+                ..Default::default()
+            },
+            MeshVertex {
+                position: [1.0, 1.0, -1.0],
+                texcoords: [1.0, 0.0],
+                normal: [0.0, 1.0, 0.0],
+                tangent: [0.0, 0.0, 1.0, 1.0],
+                ..Default::default()
+            },
+            MeshVertex {
+                position: [1.0, 1.0, 1.0],
+                texcoords: [1.0, 1.0],
+                normal: [0.0, 1.0, 0.0],
+                tangent: [0.0, 0.0, 1.0, 1.0],
+                ..Default::default()
+            },
+            MeshVertex {
+                position: [-1.0, 1.0, 1.0],
+                texcoords: [0.0, 1.0],
+                normal: [0.0, 1.0, 0.0],
+                tangent: [0.0, 0.0, 1.0, 1.0],
+                ..Default::default()
+            },
+            MeshVertex {
+                position: [-1.0, -1.0, -1.0],
+                texcoords: [0.0, 0.0],
+                normal: [-1.0, 0.0, 0.0],
+                tangent: [0.0, 0.0, 1.0, 1.0],
+                ..Default::default()
+            },
+            MeshVertex {
+                position: [-1.0, -1.0, 1.0],
+                texcoords: [1.0, 0.0],
+                normal: [-1.0, 0.0, 0.0],
+                tangent: [0.0, 0.0, 1.0, 1.0],
+                ..Default::default()
+            },
+            MeshVertex {
+                position: [-1.0, 1.0, 1.0],
+                texcoords: [1.0, 1.0],
+                normal: [-1.0, 0.0, 0.0],
+                tangent: [0.0, 0.0, 1.0, 1.0],
+                ..Default::default()
+            },
+            MeshVertex {
+                position: [-1.0, 1.0, -1.0],
+                texcoords: [0.0, 1.0],
+                normal: [-1.0, 0.0, 0.0],
+                tangent: [0.0, 0.0, 1.0, 1.0],
+                ..Default::default()
+            },
+            MeshVertex {
+                position: [1.0, -1.0, -1.0],
+                texcoords: [0.0, 0.0],
+                normal: [1.0, 0.0, 0.0],
+                tangent: [0.0, 1.0, 0.0, 1.0],
+                ..Default::default()
+            },
+            MeshVertex {
+                position: [1.0, -1.0, 1.0],
+                texcoords: [1.0, 0.0],
+                normal: [1.0, 0.0, 0.0],
+                tangent: [0.0, 1.0, 0.0, 1.0],
+                ..Default::default()
+            },
+            MeshVertex {
+                position: [1.0, 1.0, 1.0],
+                texcoords: [1.0, 1.0],
+                normal: [1.0, 0.0, 0.0],
+                tangent: [0.0, 1.0, 0.0, 1.0],
+                ..Default::default()
+            },
+            MeshVertex {
+                position: [1.0, 1.0, -1.0],
+                texcoords: [0.0, 1.0],
+                normal: [1.0, 0.0, 0.0],
+                tangent: [0.0, 1.0, 0.0, 1.0],
+                ..Default::default()
+            },
+        ];
+        let indices = vec![
+            0, 1, 2, 0, 2, 3,
+            4, 6, 5, 4, 7, 6,
+            8, 9, 10, 8, 10, 11,
+            12, 14, 13, 12, 15, 14,
+            16, 17, 18, 16, 18, 19,
+            20, 22, 21, 20, 23, 22,
+        ];
+        Self::new(vertices, indices, cgmath::Matrix4::identity(), material)
     }
 }

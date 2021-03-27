@@ -6,7 +6,7 @@ use crate::engine::Engine;
 use crate::mesh::Mesh;
 use crate::vertex::MeshVertex;
 
-pub struct GltfScene {
+pub(crate) struct GltfScene {
     gltf_document: gltf::Document,
     buffers: Vec<gltf::buffer::Data>,
     images: Vec<gltf::image::Data>,
@@ -140,7 +140,7 @@ impl Engine {
                     let mut mesh = Mesh::new(vertices, indices, transform, material.to_string());
                     mesh.build(
                         &self.graphics_state.device,
-                        &self.graphics_state.object_bind_group_layout,
+                        &self.graphics_state.bind_group_layouts["_Object"],
                     );
                     if calc_tangents {
                         mesh.calc_tangents();
@@ -274,7 +274,7 @@ mod util {
     use gltf::image::Format;
     use gltf::texture::{MagFilter, MinFilter, WrappingMode};
 
-    pub fn gltf_texture_to_wgpu_texture(
+    pub(crate) fn gltf_texture_to_wgpu_texture(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         tex: &gltf::texture::Texture,
@@ -293,6 +293,7 @@ mod util {
                     image_data.width,
                     image_data.height,
                     gltf_format_to_wgpu_format(image_data.format, is_srgb),
+                    true,
                     &gltf_sampler_to_wgpu_sampler(&tex.sampler()),
                     Some("glTF Texture 2D"),
                 )
@@ -306,6 +307,7 @@ mod util {
                     image_data.width,
                     image_data.height,
                     gltf_format_to_wgpu_format(image_data.format, is_srgb),
+                    true,
                     &gltf_sampler_to_wgpu_sampler(&tex.sampler()),
                     Some("glTF Texture 2D"),
                 )
@@ -317,13 +319,14 @@ mod util {
                 image_data.width,
                 image_data.height,
                 gltf_format_to_wgpu_format(image_data.format, is_srgb),
+                true,
                 &gltf_sampler_to_wgpu_sampler(&tex.sampler()),
                 Some("glTF Texture 2D"),
             ),
         }
     }
 
-    pub fn rgb8_to_rgba8(orig_data: &[u8], size: usize) -> Vec<u8> {
+    pub(crate) fn rgb8_to_rgba8(orig_data: &[u8], size: usize) -> Vec<u8> {
         let mut data = vec![0; 4 * size];
         for i in 0..size {
             data[4 * i] = orig_data[3 * i];
@@ -334,7 +337,7 @@ mod util {
         data
     }
 
-    pub fn rgb16_to_rgba16(orig_data: &[u8], size: usize) -> Vec<u8> {
+    pub(crate) fn rgb16_to_rgba16(orig_data: &[u8], size: usize) -> Vec<u8> {
         let mut data = vec![0; 8 * size];
         for i in 0..size {
             data[8 * i] = orig_data[6 * i];
@@ -349,7 +352,7 @@ mod util {
         data
     }
 
-    pub fn gltf_format_to_wgpu_format(
+    pub(crate) fn gltf_format_to_wgpu_format(
         format: gltf::image::Format,
         is_srgb: bool,
     ) -> wgpu::TextureFormat {
@@ -376,7 +379,7 @@ mod util {
         }
     }
 
-    pub fn gltf_sampler_to_wgpu_sampler<'a>(
+    pub(crate) fn gltf_sampler_to_wgpu_sampler<'a>(
         gltf_sampler: &gltf::texture::Sampler,
     ) -> wgpu::SamplerDescriptor<'a> {
         let address_mode_u = match gltf_sampler.wrap_s() {

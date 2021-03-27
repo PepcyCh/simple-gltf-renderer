@@ -24,3 +24,9 @@ features = ["vulkan-portability"]
 [dependencies.gltf]
 version = "0.15"
 features = ["names", "import"]
+
+[build-dependencies]
+anyhow = "1.0"
+fs_extra = "1.2"
+glob = "0.3"
+shaderc = "0.7"

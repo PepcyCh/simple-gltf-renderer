@@ -1,12 +1,12 @@
 use crate::graphics::GraphicsState;
-use wgpu::util::DeviceExt;
-use std::collections::HashMap;
 
 pub struct Texture {
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
     pub sampler: wgpu::Sampler,
-    pub views: HashMap<String, wgpu::TextureView>,
+    pub size: wgpu::Extent3d,
+    pub dimension: wgpu::TextureDimension,
+    pub format: wgpu::TextureFormat,
 }
 
 impl Texture {
@@ -20,13 +20,15 @@ impl Texture {
             height: swap_chain_desc.height,
             depth: 1,
         };
+        let dimension = wgpu::TextureDimension::D2;
+        let format = GraphicsState::DEPTH_STENCIL_FORMAT;
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label,
             size,
             mip_level_count: 1,
             sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: GraphicsState::DEPTH_STENCIL_FORMAT,
+            dimension,
+            format,
             usage: wgpu::TextureUsage::RENDER_ATTACHMENT | wgpu::TextureUsage::SAMPLED,
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -47,7 +49,9 @@ impl Texture {
             texture,
             view,
             sampler,
-            views: HashMap::new(),
+            size,
+            dimension,
+            format,
         }
     }
 
@@ -58,6 +62,7 @@ impl Texture {
         width: u32,
         height: u32,
         format: wgpu::TextureFormat,
+        mipmap: bool,
         sampler_desc: &wgpu::SamplerDescriptor,
         label: Option<&str>,
     ) -> Self {
@@ -66,18 +71,35 @@ impl Texture {
             height,
             depth: 1,
         };
-        let texture = device.create_texture_with_data(
-            queue,
-            &wgpu::TextureDescriptor {
-                label,
-                size,
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format,
-                usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST,
+        let dimension = wgpu::TextureDimension::D2;
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label,
+            size,
+            mip_level_count: if mipmap { size.max_mips() as u32 } else { 1 },
+            sample_count: 1,
+            dimension,
+            format,
+            // TODO (a problem about mipmap generating)
+            // I need this 'RENDER_ATTACHMENT' so that I can generate mipmap from fragment shader...
+            // maybe using image crate to generate it is a better choice
+            // but what about textures that are render targets ?
+            usage: wgpu::TextureUsage::SAMPLED
+                | wgpu::TextureUsage::COPY_DST
+                | wgpu::TextureUsage::RENDER_ATTACHMENT,
+        });
+        queue.write_texture(
+            wgpu::TextureCopyView {
+                texture: &texture,
+                mip_level: 0,
+                origin: Default::default(),
             },
             bytes,
+            wgpu::TextureDataLayout {
+                offset: 0,
+                bytes_per_row: width * format.describe().block_size as u32,
+                rows_per_image: height,
+            },
+            size,
         );
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -88,7 +110,9 @@ impl Texture {
             texture,
             view,
             sampler,
-            views: HashMap::new(),
+            size,
+            dimension,
+            format,
         }
     }
 
@@ -98,27 +122,45 @@ impl Texture {
         bytes: &[u8],
         width: u32,
         format: wgpu::TextureFormat,
+        mipmap: bool,
         sampler_desc: &wgpu::SamplerDescriptor,
         label: Option<&str>,
     ) -> Self {
-        // TODO - cube tex
         let size = wgpu::Extent3d {
             width,
             height: width,
             depth: 6,
         };
-        let texture = device.create_texture_with_data(
-            queue,
-            &wgpu::TextureDescriptor {
-                label,
-                size,
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format,
-                usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST,
+        let dimension = wgpu::TextureDimension::D2;
+        let layer_size = wgpu::Extent3d { depth: 1, ..size };
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label,
+            size,
+            mip_level_count: if mipmap {
+                layer_size.max_mips() as u32
+            } else {
+                1
+            },
+            sample_count: 1,
+            dimension,
+            format,
+            usage: wgpu::TextureUsage::SAMPLED
+                | wgpu::TextureUsage::COPY_DST
+                | wgpu::TextureUsage::RENDER_ATTACHMENT,
+        });
+        queue.write_texture(
+            wgpu::TextureCopyView {
+                texture: &texture,
+                mip_level: 0,
+                origin: Default::default(),
             },
             bytes,
+            wgpu::TextureDataLayout {
+                offset: 0,
+                bytes_per_row: width * format.describe().block_size as u32,
+                rows_per_image: width,
+            },
+            size,
         );
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor {
@@ -132,7 +174,62 @@ impl Texture {
             texture,
             view,
             sampler,
-            views: HashMap::new(),
+            size,
+            dimension,
+            format,
+        }
+    }
+
+    pub fn render_target_cube(
+        device: &wgpu::Device,
+        width: u32,
+        format: wgpu::TextureFormat,
+        mipmap: bool,
+    ) -> Self {
+        let size = wgpu::Extent3d {
+            width,
+            height: width,
+            depth: 6,
+        };
+        let layer_size = wgpu::Extent3d { depth: 1, ..size };
+        let dimension = wgpu::TextureDimension::D2;
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Render Target Texture Cube"),
+            size,
+            mip_level_count: if mipmap {
+                layer_size.max_mips() as u32
+            } else {
+                1
+            },
+            sample_count: 1,
+            dimension,
+            format,
+            usage: wgpu::TextureUsage::SAMPLED
+                | wgpu::TextureUsage::COPY_DST
+                | wgpu::TextureUsage::RENDER_ATTACHMENT,
+        });
+        let view = texture.create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::Cube),
+            ..Default::default()
+        });
+
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("Texture Cube Sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+        Self {
+            texture,
+            view,
+            sampler,
+            size,
+            dimension,
+            format,
         }
     }
 
@@ -144,6 +241,7 @@ impl Texture {
             1,
             1,
             wgpu::TextureFormat::Rgba8Unorm,
+            false,
             &wgpu::SamplerDescriptor::default(),
             Some("White 1x1"),
         )
@@ -156,6 +254,7 @@ impl Texture {
             1,
             1,
             wgpu::TextureFormat::Rgba8Unorm,
+            false,
             &wgpu::SamplerDescriptor::default(),
             Some("Black 1x1"),
         )
@@ -168,6 +267,7 @@ impl Texture {
             1,
             1,
             wgpu::TextureFormat::Rgba8Unorm,
+            false,
             &wgpu::SamplerDescriptor::default(),
             Some("Gray 1x1"),
         )
@@ -180,6 +280,7 @@ impl Texture {
             1,
             1,
             wgpu::TextureFormat::Rgba8Unorm,
+            false,
             &wgpu::SamplerDescriptor::default(),
             Some("Normal 1x1"),
         )
@@ -199,6 +300,7 @@ impl Texture {
             ],
             1,
             wgpu::TextureFormat::Rgba8Unorm,
+            false,
             &wgpu::SamplerDescriptor::default(),
             Some("Default Cube"),
         )
