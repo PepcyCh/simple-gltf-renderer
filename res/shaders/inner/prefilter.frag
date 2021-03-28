@@ -33,8 +33,7 @@ vec3 ImportanceSampleGgx(vec2 sam, vec3 normal_dir, float a2) {
     float sin_phi = sqrt(1.0 - cos_phi_sqr);
 
     vec3 half_dir = vec3(sin_phi * cos(theta), sin_phi * sin(theta), cos_phi);
-    vec3 bitangent_dir = abs(normal_dir.y) < 0.999 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
-    // vec3 bitangent_dir = vec3(0.0, 1.0, 0.0);
+    vec3 bitangent_dir = vec3(0.0, 1.0, 0.0);
     vec3 tangent_dir = cross(bitangent_dir, normal_dir);
     bitangent_dir = cross(normal_dir, tangent_dir);
     vec3 sample_dir = tangent_dir * half_dir.x + bitangent_dir * half_dir.y + normal_dir * half_dir.z;
@@ -46,7 +45,7 @@ float pow2(float x) {
 }
 
 float NdfGgx(float ndoth, float a2) {
-    return a2 / (PI * pow2(ndoth * ndoth * (a2 - 1) + 1));
+    return a2 / max(PI * pow2(ndoth * ndoth * (a2 - 1) + 1), 0.0001);
 }
 
 void main() {
@@ -71,7 +70,7 @@ void main() {
             float dis = NdfGgx(ndoth, roughness_sqr);
             float pdf = dis * ndoth / (4 * hdotv) + 0.0001;
             prefiltered_color += texture(samplerCube(skybox_tex, skybox_tex_sampler), light_dir).rgb * ndotl;
-            weight_sum += pdf;
+            weight_sum += ndotl;
         }
     }
 

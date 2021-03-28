@@ -26,8 +26,6 @@ impl Material {
         let uniform_bytes = vec![0; shader.uniform_size];
         let mut textures = HashMap::new();
         for (tex_name, tex_ty) in &shader.texture_properties {
-            // TODO - different value according to json
-            // TODO - different value according to tex_ty
             let default_tex = match tex_ty {
                 TextureProperty::Texture2D(default) => match default.as_str() {
                     "white" => Texture::white1x1(device, queue),
@@ -36,7 +34,8 @@ impl Material {
                     "normal" => Texture::normal1x1(device, queue),
                     _ => Texture::black1x1(device, queue),
                 },
-                _ => Texture::white1x1(device, queue),
+                TextureProperty::TextureCube => Texture::default_cube(device, queue),
+                TextureProperty::Texture3D => Texture::black1x1x1(device, queue),
             };
             textures.insert(tex_name.clone(), default_tex);
         }

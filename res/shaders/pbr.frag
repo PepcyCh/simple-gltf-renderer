@@ -40,6 +40,8 @@ layout (set = 2, binding = 0) uniform LightUniform {
 layout (set = 3, binding = 0) uniform CameraUniform {
     mat4 matrix_view;
     mat4 matrix_proj;
+    mat4 matrix_view_inv;
+    mat4 matrix_proj_inv;
     vec3 camera_position;
     float _padding0;
     float camera_znear;
@@ -100,8 +102,9 @@ void main() {
         v_normal * normal_tspace.z
     );
 
-    // roughness, metallic, fresnel_r0
+    // ao, roughness, metallic, fresnel_r0
     vec4 mr = texture(sampler2D(metallic_roughness_tex, metallic_roughness_tex_sampler), v_texcoords);
+    float ambient_occlusion = mr.r;
     float metallic = mr.b * metallic_factor;
     vec3 fresnel_r0 = mix(vec3(0.04), albedo, metallic);
     float p_roughness = mr.g * roughness_factor;
@@ -111,12 +114,10 @@ void main() {
     // emissive
     vec3 emissive = emissive_factor * texture(sampler2D(emissive_tex, emissive_tex_sampler), v_texcoords).xyz;
 
-    // light, view, half
+    // light, view, half, reflect
     vec3 light_dir = mix(light_position.xyz, normalize(light_position.xyz - v_position), light_position.w);
     vec3 view_dir = normalize(camera_position - v_position);
     vec3 half_dir = normalize(view_dir + light_dir);
-
-    // reflect
     vec3 reflect_dir = reflect(-view_dir, normal_dir);
 
     // dots
@@ -126,7 +127,8 @@ void main() {
     float hdotv = max(dot(half_dir, view_dir), 0.0);
 
     // diffuse
-    vec3 diffuse = albedo / PI;
+//    vec3 diffuse = albedo / PI;
+    vec3 diffuse = albedo;
 
     // NDF
     float ndf = NdfGgx(ndoth, roughness_sqr);
@@ -144,29 +146,28 @@ void main() {
 #ifdef FORWARD_BASE
     vec3 prefiltered_color = textureLod(samplerCube(skybox_prefiltered_tex, skybox_prefiltered_tex_sampler),
         reflect_dir, p_roughness * 6).rgb;
-    vec2 brdf = texture(sampler2D(brdf_lut_tex, brdf_lut_tex_sampler), vec2(ndotv, p_roughness)).rg;
-    vec3 indirect_specular = prefiltered_color * (fresnel * brdf.x + brdf.y);
-    vec3 indirect_diffuse = texture(samplerCube(skybox_irradiance_tex, skybox_irradiance_tex_sampler), normal_dir).rgb;
-    vec3 indirect_lighting = indirect_diffuse * (vec3(1.0) - fresnel) + indirect_specular;
+    vec2 brdf = texture(sampler2D(brdf_lut_tex, brdf_lut_tex_sampler), vec2(hdotv, p_roughness)).rg;
+    vec3 indirect_specular = prefiltered_color * (fresnel_r0 * brdf.x + brdf.y);
+    vec3 indirect_diffuse = albedo * texture(samplerCube(skybox_irradiance_tex, skybox_irradiance_tex_sampler), normal_dir).rgb;
+    vec3 indirect_lighting = (indirect_diffuse * (vec3(1.0) - fresnel) + indirect_specular) * ambient_occlusion;
 #else
     vec3 indirect_lighting = vec3(0.0);
 #endif
 
-#ifdef FORWARD_BASE
-    vec3 normal_visualized = (normal_dir + vec3(1.0)) * 0.5;
-#else
-    vec3 normal_visualized = vec3(0.0);
-#endif
-
     // final color
-//    vec3 final_color = albedo;
-//    vec3 final_color = normal_visualized;
-//    vec3 final_color = vec3(ndf);
-//    vec3 final_color = vec3(visible);
-//    vec3 final_color = fresnel;
-//    vec3 final_color = emissive;
-//    vec3 final_color = direct_lighting;
-//    vec3 final_color = indirect_lighting;
-    vec3 final_color = direct_lighting + emissive + indirect_lighting;
+    vec3 final_color = vec3(0.0);
+#ifdef FORWARD_BASE
+//    final_color = albedo;
+//    final_color = (normal_dir + vec3(1.0)) * 0.5;
+//    final_color = vec3(ndf);
+//    final_color = vec3(visible);
+//    final_color = fresnel;
+//    final_color = emissive;
+//    final_color = direct_lighting;
+//    final_color = indirect_lighting;
+//    final_color = prefiltered_color;
+//    final_color = texture(samplerCube(skybox_irradiance_tex, skybox_irradiance_tex_sampler), normal_dir).rgb;
+#endif
+    final_color = direct_lighting + emissive + indirect_lighting;
     f_color = vec4(final_color, alpha);
 }

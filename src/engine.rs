@@ -26,7 +26,6 @@ pub struct Engine {
     pub meshes: Vec<Mesh>,
     camera: Camera,
     pub skybox_camera: CubeCamera,
-    pub skybox_cube: Mesh,
     lights: Vec<Light>,
     skybox: EnvMap,
     brdf_lut: Texture,
@@ -64,12 +63,6 @@ impl Engine {
             &graphics_state.bind_group_layouts["_Camera"],
         );
 
-        let mut skybox_cube = Mesh::cube("".to_string());
-        skybox_cube.build(
-            &graphics_state.device,
-            &graphics_state.bind_group_layouts["_Object"],
-        );
-
         let mut light0 = Light::directional_light((-1.0, -8.0, -1.0).into(), [1.0, 1.0, 1.0, 1.0]);
         light0.build(
             &graphics_state.device,
@@ -101,7 +94,6 @@ impl Engine {
             Some("BRDF LUT"),
         );
 
-        // TODO - load a skybox
         let skybox = EnvMap::default(
             &graphics_state.device,
             &graphics_state.queue,
@@ -117,7 +109,6 @@ impl Engine {
             meshes: vec![],
             camera,
             skybox_camera,
-            skybox_cube,
             lights: vec![light0, light1],
             skybox,
             brdf_lut,
@@ -254,18 +245,15 @@ impl Engine {
         .cloned()
         .collect();
 
+        // TODO - It's quite strange that if width <= 256 all things work well
+        // but program will crash in 'generate_all_mipmaps() -> generate_mipmap() -> submit()'
+        // if width >= 512 ...
+        // let width = 512; // 256 ok but 512 crash
+        // let bytes: Vec<u8> = [[179, 229, 252, 255]; 512 * 512 * 6].iter().flatten().cloned().collect();
+
         let new_skybox = self.create_env_map(
             &bytes,
-            // &[
-            //     255, 0, 0, 255,
-            //     0, 255, 255, 255,
-            //     0, 255, 0, 255,
-            //     255, 0, 255, 255,
-            //     0, 0, 255, 255,
-            //     255, 255, 0, 255,
-            // ],
             width,
-            // 1,
             wgpu::TextureFormat::Rgba8UnormSrgb,
             Some("EnvMap"),
             &self.brdf_lut,
@@ -433,15 +421,7 @@ impl Engine {
         render_pass.set_pipeline(&self.graphics_state.render_pipelines["Skybox"]);
         render_pass.set_bind_group(1, &self.skybox.bind_group, &[]);
         render_pass.set_bind_group(0, &self.camera.bind_group.as_ref().unwrap(), &[]);
-        render_pass.set_vertex_buffer(
-            0,
-            self.skybox_cube.vertex_buffer.as_ref().unwrap().slice(..),
-        );
-        render_pass.set_index_buffer(
-            self.skybox_cube.index_buffer.as_ref().unwrap().slice(..),
-            wgpu::IndexFormat::Uint32,
-        );
-        render_pass.draw_indexed(0..self.skybox_cube.index_count(), 0, 0..1);
+        render_pass.draw(0..3, 0..1);
     }
 
     pub fn generate_mipmap(&self, texture: &Texture) {

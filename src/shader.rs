@@ -27,8 +27,8 @@ pub enum UniformProperty {
 #[derive(Eq, PartialEq)]
 pub enum TextureProperty {
     Texture2D(String),
-    Texture3D,
     TextureCube,
+    Texture3D,
 }
 
 pub struct SubShader {
@@ -623,9 +623,42 @@ mod shader_option_util {
         }
     }
 
+    pub fn stencil_op_from_str(str: &str) -> Result<wgpu::StencilOperation, ShaderParseError> {
+        match str {
+            "keep" => Ok(wgpu::StencilOperation::Keep),
+            "replace" => Ok(wgpu::StencilOperation::Replace),
+            "invert" => Ok(wgpu::StencilOperation::Invert),
+            "zero" => Ok(wgpu::StencilOperation::Zero),
+            "inc_clamp" => Ok(wgpu::StencilOperation::IncrementClamp),
+            "inc_wrap" => Ok(wgpu::StencilOperation::IncrementWrap),
+            "dec_clamp" => Ok(wgpu::StencilOperation::DecrementClamp),
+            "dec_wrap" => Ok(wgpu::StencilOperation::DecrementWrap),
+            _ => Err(ShaderParseError {
+                parse_error: format!("Unknown stencil operation '{}'", str),
+            }),
+        }
+    }
+
     pub fn stencil_face_state_from_json(
         value: &serde_json::Value,
     ) -> Result<wgpu::StencilFaceState, ShaderParseError> {
-        todo!("stencil_face_state_from_json")
+        let mut state = wgpu::StencilFaceState::default();
+        if let Some(cmp) = value.get("compare") {
+            let cmp = cmp.as_str().unwrap();
+            state.compare = compare_func_from_str(cmp)?;
+        }
+        if let Some(pass) = value.get("pass") {
+            let pass = pass.as_str().unwrap();
+            state.pass_op = stencil_op_from_str(pass)?;
+        }
+        if let Some(fail) = value.get("fail") {
+            let fail = fail.as_str().unwrap();
+            state.pass_op = stencil_op_from_str(fail)?;
+        }
+        if let Some(depth_fail) = value.get("depth_fail") {
+            let depth_fail = depth_fail.as_str().unwrap();
+            state.pass_op = stencil_op_from_str(depth_fail)?;
+        }
+        Ok(state)
     }
 }

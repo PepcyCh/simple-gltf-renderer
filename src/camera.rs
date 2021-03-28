@@ -20,6 +20,8 @@ pub struct Camera {
 pub struct CameraUniform {
     view: [[f32; 4]; 4],
     proj: [[f32; 4]; 4],
+    view_inv: [[f32; 4]; 4],
+    proj_inv: [[f32; 4]; 4],
     eye: [f32; 3],
     _padding: f32,
     znear: f32,
@@ -31,6 +33,7 @@ pub struct CubeCamera {
     znear: f32,
     zfar: f32,
     proj: cgmath::Matrix4<f32>,
+    proj_inv: cgmath::Matrix4<f32>,
     uniforms: Vec<CubeCameraUniform>,
     uniform_buffers: Option<Vec<wgpu::Buffer>>,
     pub bind_groups: Option<Vec<wgpu::BindGroup>>,
@@ -42,6 +45,8 @@ pub struct CubeCamera {
 pub struct CubeCameraUniform {
     view: [[f32; 4]; 4],
     proj: [[f32; 4]; 4],
+    view_inv: [[f32; 4]; 4],
+    proj_inv: [[f32; 4]; 4],
     znear: f32,
     zfar: f32,
 }
@@ -74,6 +79,8 @@ impl Camera {
             uniform: CameraUniform {
                 view: view.into(),
                 proj: proj.into(),
+                view_inv: view.invert().unwrap().into(),
+                proj_inv: proj.invert().unwrap().into(),
                 eye: eye.into(),
                 _padding: 0.0,
                 znear,
@@ -148,10 +155,13 @@ impl Camera {
     pub fn update(&mut self, queue: &wgpu::Queue) {
         if self.uniform_dirty {
             self.uniform.eye = self.eye.into();
-            self.uniform.view = cgmath::Matrix4::look_at(self.eye, self.target, self.up).into();
-            self.uniform.proj = (OPENGL_TO_WGPU_MATRIX
-                * cgmath::perspective(cgmath::Deg(self.fovy), self.aspect, self.znear, self.zfar))
-            .into();
+            let view = cgmath::Matrix4::look_at(self.eye, self.target, self.up);
+            self.uniform.view = view.into();
+            self.uniform.view_inv = view.invert().unwrap().into();
+            let proj = OPENGL_TO_WGPU_MATRIX
+                * cgmath::perspective(cgmath::Deg(self.fovy), self.aspect, self.znear, self.zfar);
+            self.uniform.proj = proj.into();
+            self.uniform.proj_inv = proj.invert().unwrap().into();
 
             queue.write_buffer(
                 &self.uniform_buffer.as_ref().unwrap(),
@@ -166,6 +176,7 @@ impl Camera {
 impl CubeCamera {
     pub fn new(position: cgmath::Point3<f32>, znear: f32, zfar: f32) -> Self {
         let proj = OPENGL_TO_WGPU_MATRIX * cgmath::perspective(cgmath::Deg(90.0), 1.0, znear, zfar);
+        let proj_inv = proj.invert().unwrap();
         let views = [
             cgmath::Matrix4::look_at(
                 position,
@@ -203,6 +214,8 @@ impl CubeCamera {
             .map(|view| CubeCameraUniform {
                 view: (*view).into(),
                 proj: proj.into(),
+                view_inv: view.invert().unwrap().into(),
+                proj_inv: proj_inv.into(),
                 znear,
                 zfar,
             })
@@ -212,6 +225,7 @@ impl CubeCamera {
             znear,
             zfar,
             proj,
+            proj_inv,
             uniforms,
             uniform_buffers: None,
             bind_groups: None,
@@ -290,6 +304,8 @@ impl CubeCamera {
                 .map(|view| CubeCameraUniform {
                     view: (*view).into(),
                     proj: self.proj.into(),
+                    view_inv: view.invert().unwrap().into(),
+                    proj_inv: self.proj_inv.into(),
                     znear: self.znear,
                     zfar: self.zfar,
                 })

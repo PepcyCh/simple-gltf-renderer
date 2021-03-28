@@ -8,8 +8,6 @@ pub struct EnvMap {
     pub bind_group: wgpu::BindGroup,
 }
 
-// TODO - LUT in bind group
-
 impl EnvMap {
     pub fn default(
         device: &wgpu::Device,
@@ -205,27 +203,13 @@ impl Engine {
             render_pass.set_pipeline(&self.graphics_state.render_pipelines["EnvMap-Irradiance"]);
             render_pass.set_bind_group(1, &pre_calc_bind_group, &[]);
             render_pass.set_bind_group(0, self.skybox_camera.get_bind_group(i as usize), &[]);
-            render_pass.set_vertex_buffer(
-                0,
-                self.skybox_cube.vertex_buffer.as_ref().unwrap().slice(..),
-            );
-            render_pass.set_index_buffer(
-                self.skybox_cube.index_buffer.as_ref().unwrap().slice(..),
-                wgpu::IndexFormat::Uint32,
-            );
-            render_pass.draw_indexed(0..self.skybox_cube.index_count(), 0, 0..1);
+            render_pass.draw(0..3, 0..1);
         }
         self.graphics_state
             .queue
             .submit(std::iter::once(encoder.finish()));
         self.generate_mipmap(&irradiance);
 
-        let mut encoder =
-            self.graphics_state
-                .device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("Render Encoder - EnvMap - Prefilter"),
-                });
         let mipmap_level_count = {
             let layer_size = wgpu::Extent3d {
                 depth: 1,
@@ -234,6 +218,12 @@ impl Engine {
             layer_size.max_mips() as u32
         };
         for j in 0..mipmap_level_count {
+            let mut encoder = self.graphics_state.device.create_command_encoder(
+                &wgpu::CommandEncoderDescriptor {
+                    label: Some("Render Encoder - EnvMap - Prefilter"),
+                },
+            );
+
             let roughness = (j as f32 / 6.0).min(1.0);
             self.graphics_state.queue.write_buffer(
                 &pre_calc_uniform_buffer,
@@ -266,20 +256,14 @@ impl Engine {
                 render_pass.set_pipeline(&self.graphics_state.render_pipelines["EnvMap-Prefilter"]);
                 render_pass.set_bind_group(1, &pre_calc_bind_group, &[]);
                 render_pass.set_bind_group(0, self.skybox_camera.get_bind_group(i as usize), &[]);
-                render_pass.set_vertex_buffer(
-                    0,
-                    self.skybox_cube.vertex_buffer.as_ref().unwrap().slice(..),
-                );
-                render_pass.set_index_buffer(
-                    self.skybox_cube.index_buffer.as_ref().unwrap().slice(..),
-                    wgpu::IndexFormat::Uint32,
-                );
-                render_pass.draw_indexed(0..self.skybox_cube.index_count(), 0, 0..1);
+                render_pass.draw(0..3, 0..1);
             }
+
+            // I have to submit per mipmap level since 'roughness' is changed
+            self.graphics_state
+                .queue
+                .submit(std::iter::once(encoder.finish()));
         }
-        self.graphics_state
-            .queue
-            .submit(std::iter::once(encoder.finish()));
 
         EnvMap {
             cubemap,

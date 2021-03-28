@@ -44,6 +44,8 @@ layout (set = 2, binding = 0) uniform LightUniform {
 layout (set = 3, binding = 0) uniform CameraUniform {
     mat4 matrix_view;
     mat4 matrix_proj;
+    mat4 matrix_view_inv;
+    mat4 matrix_proj_inv;
     vec3 camera_position;
     float _padding0;
     float camera_znear;

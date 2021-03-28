@@ -1,5 +1,4 @@
 use crate::engine::Engine;
-use crate::vertex::MeshVertex;
 
 impl Engine {
     pub(crate) fn init_inner_pipelines(&mut self) {
@@ -122,7 +121,7 @@ impl Engine {
                     vertex: wgpu::VertexState {
                         module: &vs_module,
                         entry_point: "main",
-                        buffers: &[MeshVertex::desc()],
+                        buffers: &[],
                     },
                     fragment: Some(wgpu::FragmentState {
                         module: &fs_module,
@@ -212,7 +211,7 @@ impl Engine {
                     vertex: wgpu::VertexState {
                         module: &vs_module,
                         entry_point: "main",
-                        buffers: &[MeshVertex::desc()],
+                        buffers: &[],
                     },
                     fragment: Some(wgpu::FragmentState {
                         module: &irradiance_fs_module,
@@ -249,7 +248,7 @@ impl Engine {
                     vertex: wgpu::VertexState {
                         module: &vs_module,
                         entry_point: "main",
-                        buffers: &[MeshVertex::desc()],
+                        buffers: &[],
                     },
                     fragment: Some(wgpu::FragmentState {
                         module: &prefilter_fs_module,

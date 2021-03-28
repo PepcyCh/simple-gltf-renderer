@@ -72,34 +72,15 @@ impl Texture {
             depth: 1,
         };
         let dimension = wgpu::TextureDimension::D2;
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label,
-            size,
-            mip_level_count: if mipmap { size.max_mips() as u32 } else { 1 },
-            sample_count: 1,
-            dimension,
-            format,
-            // TODO (a problem about mipmap generating)
-            // I need this 'RENDER_ATTACHMENT' so that I can generate mipmap from fragment shader...
-            // maybe using image crate to generate it is a better choice
-            // but what about textures that are render targets ?
-            usage: wgpu::TextureUsage::SAMPLED
-                | wgpu::TextureUsage::COPY_DST
-                | wgpu::TextureUsage::RENDER_ATTACHMENT,
-        });
-        queue.write_texture(
-            wgpu::TextureCopyView {
-                texture: &texture,
-                mip_level: 0,
-                origin: Default::default(),
-            },
+        let texture = Self::wgpu_texture_from_bytes(
+            device,
+            queue,
             bytes,
-            wgpu::TextureDataLayout {
-                offset: 0,
-                bytes_per_row: width * format.describe().block_size as u32,
-                rows_per_image: height,
-            },
             size,
+            format,
+            dimension,
+            if mipmap { size.max_mips() as u32 } else { 1 },
+            label,
         );
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -133,34 +114,19 @@ impl Texture {
         };
         let dimension = wgpu::TextureDimension::D2;
         let layer_size = wgpu::Extent3d { depth: 1, ..size };
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label,
+        let texture = Self::wgpu_texture_from_bytes(
+            device,
+            queue,
+            bytes,
             size,
-            mip_level_count: if mipmap {
+            format,
+            dimension,
+            if mipmap {
                 layer_size.max_mips() as u32
             } else {
                 1
             },
-            sample_count: 1,
-            dimension,
-            format,
-            usage: wgpu::TextureUsage::SAMPLED
-                | wgpu::TextureUsage::COPY_DST
-                | wgpu::TextureUsage::RENDER_ATTACHMENT,
-        });
-        queue.write_texture(
-            wgpu::TextureCopyView {
-                texture: &texture,
-                mip_level: 0,
-                origin: Default::default(),
-            },
-            bytes,
-            wgpu::TextureDataLayout {
-                offset: 0,
-                bytes_per_row: width * format.describe().block_size as u32,
-                rows_per_image: width,
-            },
-            size,
+            label,
         );
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor {
@@ -178,6 +144,92 @@ impl Texture {
             dimension,
             format,
         }
+    }
+
+    pub fn from_bytes_3d(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        bytes: &[u8],
+        width: u32,
+        height: u32,
+        depth: u32,
+        format: wgpu::TextureFormat,
+        mipmap: bool,
+        sampler_desc: &wgpu::SamplerDescriptor,
+        label: Option<&str>,
+    ) -> Self {
+        let size = wgpu::Extent3d {
+            width,
+            height,
+            depth,
+        };
+        let dimension = wgpu::TextureDimension::D3;
+        let texture = Self::wgpu_texture_from_bytes(
+            device,
+            queue,
+            bytes,
+            size,
+            format,
+            dimension,
+            if mipmap { size.max_mips() as u32 } else { 1 },
+            label,
+        );
+
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        let sampler = device.create_sampler(sampler_desc);
+
+        Self {
+            texture,
+            view,
+            sampler,
+            size,
+            dimension,
+            format,
+        }
+    }
+
+    fn wgpu_texture_from_bytes(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        bytes: &[u8],
+        size: wgpu::Extent3d,
+        format: wgpu::TextureFormat,
+        dimension: wgpu::TextureDimension,
+        mip_level_count: u32,
+        label: Option<&str>,
+    ) -> wgpu::Texture {
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label,
+            size,
+            mip_level_count,
+            sample_count: 1,
+            dimension,
+            format,
+            // TODO (a problem about mipmap generating)
+            // I need this 'RENDER_ATTACHMENT' so that I can generate mipmap from fragment shader...
+            // maybe using image crate to generate it is a better choice
+            // but what about textures that are render targets ?
+            // what about using compute shader ?
+            usage: wgpu::TextureUsage::SAMPLED
+                | wgpu::TextureUsage::COPY_DST
+                | wgpu::TextureUsage::RENDER_ATTACHMENT,
+        });
+        queue.write_texture(
+            wgpu::TextureCopyView {
+                texture: &texture,
+                mip_level: 0,
+                origin: Default::default(),
+            },
+            bytes,
+            wgpu::TextureDataLayout {
+                offset: 0,
+                bytes_per_row: size.width * format.describe().block_size as u32,
+                rows_per_image: size.height,
+            },
+            size,
+        );
+        texture
     }
 
     pub fn render_target_cube(
@@ -303,6 +355,20 @@ impl Texture {
             false,
             &wgpu::SamplerDescriptor::default(),
             Some("Default Cube"),
+        )
+    }
+    pub fn black1x1x1(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
+        Self::from_bytes_3d(
+            device,
+            queue,
+            &[0, 0, 0, 255],
+            1,
+            1,
+            1,
+            wgpu::TextureFormat::Rgba8Unorm,
+            false,
+            &wgpu::SamplerDescriptor::default(),
+            Some("Black 1x1x1"),
         )
     }
 }

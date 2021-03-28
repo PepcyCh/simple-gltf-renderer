@@ -11,7 +11,6 @@ const float PI = 3.14159265359;
 
 void main() {
     vec3 normal_dir = normalize(v_position);
-    // vec3 bitangent_dir = abs(normal_dir.y) < 0.999 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
     vec3 bitangent_dir = vec3(0.0, 1.0, 0.0);
     vec3 tangent_dir = cross(bitangent_dir, normal_dir);
     bitangent_dir = cross(normal_dir, tangent_dir);
@@ -23,10 +22,11 @@ void main() {
         for (float phi = 0.0; phi < 0.5 * PI; phi += delta) {
             vec3 sample_dir = vec3(sin(phi) * cos(theta), sin(phi) * sin(theta), cos(phi));
             sample_dir = tangent_dir * sample_dir.x + bitangent_dir * sample_dir.y + normal_dir * sample_dir.z;
-            irradiance += texture(samplerCube(skybox_tex, skybox_tex_sampler), sample_dir).rgb;
+            irradiance += texture(samplerCube(skybox_tex, skybox_tex_sampler), sample_dir).rgb * cos(phi) * sin(phi);
             sample_count += 1;
         }
     }
-    irradiance = PI * irradiance / sample_count;
+//    irradiance = PI * irradiance / sample_count;
+    irradiance = irradiance / sample_count;
     f_color = vec4(irradiance, 1.0);
 }

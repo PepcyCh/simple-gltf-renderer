@@ -3,6 +3,7 @@ use byte_slice_cast::AsSliceOf;
 use cgmath::SquareMatrix;
 
 use crate::engine::Engine;
+use crate::material::Material;
 use crate::mesh::Mesh;
 use crate::vertex::MeshVertex;
 
@@ -53,6 +54,19 @@ impl Engine {
     fn parse_gltf_materials(&mut self, gltf_scene: &GltfScene) {
         for mat in gltf_scene.gltf_document.materials() {
             let gltf_material_name = mat.name().unwrap();
+            if self.materials.get(gltf_material_name).is_none() {
+                if let Some(shader) = self.shaders.get("pbr_shader") {
+                    self.materials.insert(
+                        gltf_material_name.to_string(),
+                        Material::from_shader(
+                            gltf_material_name.to_string(),
+                            shader,
+                            &self.graphics_state.device,
+                            &self.graphics_state.queue,
+                        ),
+                    );
+                }
+            }
             if let Some(material) = self.materials.get_mut(gltf_material_name) {
                 if let Some(shader) = self.shaders.get(&material.shader) {
                     let pbr_mr = mat.pbr_metallic_roughness();
@@ -147,7 +161,6 @@ impl Engine {
                     }
                     self.meshes.push(mesh);
                 } else {
-                    // TODO - default material
                     eprintln!("Can't find material '{:?}'", material);
                 }
             }
