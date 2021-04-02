@@ -63,13 +63,23 @@ impl Engine {
             &graphics_state.bind_group_layouts["_Camera"],
         );
 
-        let mut light0 = Light::directional_light((-1.0, -8.0, -1.0).into(), [1.0, 1.0, 1.0, 1.0]);
+        let mut light0 = Light::directional_light((-3.0, -1.0, -5.0).into(), [1.0, 1.0, 1.0, 1.0]);
         light0.build(
             &graphics_state.device,
             &graphics_state.bind_group_layouts["_Light"],
         );
-        let mut light1 = Light::directional_light((1.0, -4.0, 1.0).into(), [0.8, 0.8, 0.8, 1.0]);
+        let mut light1 = Light::directional_light((2.0, -1.0, 5.0).into(), [1.0, 1.0, 1.0, 1.0]);
         light1.build(
+            &graphics_state.device,
+            &graphics_state.bind_group_layouts["_Light"],
+        );
+        let mut light2 = Light::directional_light((5.0, -1.0, 0.0).into(), [1.0, 1.0, 1.0, 1.0]);
+        light2.build(
+            &graphics_state.device,
+            &graphics_state.bind_group_layouts["_Light"],
+        );
+        let mut light3 = Light::directional_light((-5.0, -1.0, 0.0).into(), [1.0, 1.0, 1.0, 1.0]);
+        light3.build(
             &graphics_state.device,
             &graphics_state.bind_group_layouts["_Light"],
         );
@@ -109,7 +119,7 @@ impl Engine {
             meshes: vec![],
             camera,
             skybox_camera,
-            lights: vec![light0, light1],
+            lights: vec![light0, light1, light2, light3],
             skybox,
             brdf_lut,
             shaders: HashMap::new(),

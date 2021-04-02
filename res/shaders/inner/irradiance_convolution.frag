@@ -18,15 +18,14 @@ void main() {
     vec3 irradiance = vec3(0.0);
     int sample_count = 0;
     float delta = 0.05;
-    for (float theta = 0.0; theta < 2.0 * PI; theta += delta) {
-        for (float phi = 0.0; phi < 0.5 * PI; phi += delta) {
-            vec3 sample_dir = vec3(sin(phi) * cos(theta), sin(phi) * sin(theta), cos(phi));
+    for (float phi = 0.0; phi < 2.0 * PI; phi += delta) {
+        for (float theta = 0.0; theta < 0.5 * PI; theta += delta) {
+            vec3 sample_dir = vec3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
             sample_dir = tangent_dir * sample_dir.x + bitangent_dir * sample_dir.y + normal_dir * sample_dir.z;
-            irradiance += texture(samplerCube(skybox_tex, skybox_tex_sampler), sample_dir).rgb * cos(phi) * sin(phi);
+            irradiance += texture(samplerCube(skybox_tex, skybox_tex_sampler), sample_dir).rgb * cos(theta) * sin(theta);
             sample_count += 1;
         }
     }
-//    irradiance = PI * irradiance / sample_count;
-    irradiance = irradiance / sample_count;
+    irradiance = PI * irradiance / sample_count;
     f_color = vec4(irradiance, 1.0);
 }

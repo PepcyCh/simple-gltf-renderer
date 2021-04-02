@@ -127,8 +127,8 @@ void main() {
     float hdotv = max(dot(half_dir, view_dir), 0.0);
 
     // diffuse
-//    vec3 diffuse = albedo / PI;
     vec3 diffuse = albedo;
+//    vec3 diffuse = albedo / PI;
 
     // NDF
     float ndf = NdfGgx(ndoth, roughness_sqr);
@@ -138,9 +138,12 @@ void main() {
 
     // Fresnel
     vec3 fresnel = SchlickFresnel(fresnel_r0, hdotv);
+    vec3 fresnel_dielectric = SchlickFresnel(vec3(0.04), hdotv);
+    vec3 k_specualr = fresnel;
+    vec3 k_diffsue = (vec3(1.0) - fresnel_dielectric) * (1.0 - metallic);
 
     // direct lighting
-    vec3 direct_lighting = (diffuse * (vec3(1.0) - fresnel) + ndf * visible * fresnel) * light_color.xyz * ndotl;
+    vec3 direct_lighting = (diffuse * k_diffsue + ndf * visible * k_specualr) * light_color.xyz * ndotl;
 
     // indirect lighting
 #ifdef FORWARD_BASE
@@ -149,7 +152,7 @@ void main() {
     vec2 brdf = texture(sampler2D(brdf_lut_tex, brdf_lut_tex_sampler), vec2(hdotv, p_roughness)).rg;
     vec3 indirect_specular = prefiltered_color * (fresnel_r0 * brdf.x + brdf.y);
     vec3 indirect_diffuse = albedo * texture(samplerCube(skybox_irradiance_tex, skybox_irradiance_tex_sampler), normal_dir).rgb;
-    vec3 indirect_lighting = (indirect_diffuse * (vec3(1.0) - fresnel) + indirect_specular) * ambient_occlusion;
+    vec3 indirect_lighting = (indirect_diffuse * k_diffsue + indirect_specular) * ambient_occlusion;
 #else
     vec3 indirect_lighting = vec3(0.0);
 #endif
@@ -161,6 +164,7 @@ void main() {
 //    final_color = (normal_dir + vec3(1.0)) * 0.5;
 //    final_color = vec3(ndf);
 //    final_color = vec3(visible);
+//    final_color = vec3(roughness);
 //    final_color = fresnel;
 //    final_color = emissive;
 //    final_color = direct_lighting;
